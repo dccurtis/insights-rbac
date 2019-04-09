@@ -102,37 +102,44 @@ class PrincipalProxy:  # pylint: disable=too-few-public-methods
             'status': status.HTTP_500_INTERNAL_SERVER_ERROR,
             'source': 'principals'
         }
-        try:
-            response = method(url, headers=headers, params=params, json=data)
-        except requests.exceptions.ConnectionError:
-            resp = {
-                'status_code': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                'errors': [unexpected_error]
-            }
+        if self.user_env == 'dev':
+            response = [{'username': 'fakeuser', 'email': 'fakeuser@redhat.com', 'first_name': 'Fake', 'last_name': 'User'}]
+            resp = {}
+            resp['status_code'] = 200
+            resp['data'] = self._process_data(response)
             return resp
-
-        error = None
-        resp = {
-            'status_code': response.status_code
-        }
-        if response.status_code == status.HTTP_200_OK:
-            try:
-                resp['data'] = self._process_data(response.json())
-            except ValueError:
-                resp['status_code'] = status.HTTP_500_INTERNAL_SERVER_ERROR
-                error = unexpected_error
-        elif response.status_code == status.HTTP_404_NOT_FOUND:
-            error = {
-                'detail': 'Not Found.',
-                'status': response.status_code,
-                'source': 'principals'
-            }
         else:
-            error = unexpected_error
-            error['status'] = response.status_code
-        if error:
-            resp['errors'] = [error]
-        return resp
+            try:
+                response = method(url, headers=headers, params=params, json=data)
+            except requests.exceptions.ConnectionError:
+                resp = {
+                    'status_code': status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    'errors': [unexpected_error]
+                }
+                return resp
+
+            error = None
+            resp = {
+                'status_code': response.status_code
+            }
+            if response.status_code == status.HTTP_200_OK:
+                try:
+                    resp['data'] = self._process_data(response.json())
+                except ValueError:
+                    resp['status_code'] = status.HTTP_500_INTERNAL_SERVER_ERROR
+                    error = unexpected_error
+            elif response.status_code == status.HTTP_404_NOT_FOUND:
+                error = {
+                    'detail': 'Not Found.',
+                    'status': response.status_code,
+                    'source': 'principals'
+                }
+            else:
+                error = unexpected_error
+                error['status'] = response.status_code
+            if error:
+                resp['errors'] = [error]
+            return resp
 
     def request_principals(self, account, limit=None, offset=None):
         """Request principals for an account."""
